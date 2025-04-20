@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wendler 5/3/1 Tracker</title>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; background: #f9f9f9; }
+    h1 { text-align: center; }
+    form { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+    input, button { padding: 0.5rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 8px; }
+    button { background-color: #007bff; color: white; border: none; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
+    .entry { background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .entry strong { display: block; margin-bottom: 0.25rem; }
+  </style>
+</head>
+<body>
+  <h1>Wendler 5/3/1 Tracker</h1>
+  <form id="entry-form">
+    <input type="date" id="date" required />
+    <input type="text" id="bench" placeholder="Bench Press (e.g. 3x5 @ 80kg)" required />
+    <input type="text" id="chin" placeholder="Chin Up (e.g. 3x8 BW)" required />
+    <input type="text" id="squat" placeholder="Squat (e.g. 3x5 @ 100kg)" required />
+    <button type="submit">Save Entry</button>
+  </form>
+
+  <div id="entries"></div>
+
+  <script>
+    const form = document.getElementById('entry-form');
+    const entriesDiv = document.getElementById('entries');
+
+    function loadEntries() {
+      const entries = JSON.parse(localStorage.getItem('wendlerEntries')) || [];
+      entriesDiv.innerHTML = '';
+      entries.reverse().forEach(entry => {
+        const div = document.createElement('div');
+        div.className = 'entry';
+        div.innerHTML = `
+          <strong>${entry.date}</strong>
+          Bench Press: ${entry.bench}<br>
+          Chin Up: ${entry.chin}<br>
+          Squat: ${entry.squat}
+        `;
+        entriesDiv.appendChild(div);
+      });
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const entry = {
+        date: document.getElementById('date').value,
+        bench: document.getElementById('bench').value,
+        chin: document.getElementById('chin').value,
+        squat: document.getElementById('squat').value
+      };
+      const entries = JSON.parse(localStorage.getItem('wendlerEntries')) || [];
+      entries.push(entry);
+      localStorage.setItem('wendlerEntries', JSON.stringify(entries));
+      form.reset();
+      loadEntries();
+    });
+
+    loadEntries();
+  </script>
+</body>
+</html>
