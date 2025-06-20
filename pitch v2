@@ -1,0 +1,193 @@
+import tkinter as tk
+from tkinter import ttk
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import math
+
+# --- Inputs ---
+fsp_mass = 30000.0  # kg
+dsf_mass = 7000.0  # kg
+pw_mass = 12500.0  # kg
+ballast_mass = 4000.0  # kg
+cb_mass = 4000.0  # kg
+length = 8.0  # m
+width = 4.0  # m
+height = 3.00 # m
+cb_distance = 4.26 #m
+cog_platform = 1.00 #m
+cog_ballast = 0.20 #m
+cog_cb = 1.00 #m
+pw_distance_from_CL = 5.5 #m
+COGxy = () #
+
+# --- Constants ---
+rho = 998.0  # water density (kg/m^3)
+g = 9.81  # gravity (m/s^2)
+
+def rotate_points(center, point1, angle):
+
+
+    rad = math.radians(angle)  # Convert degrees to radians
+
+    # Rotate point1
+    new_x1 = center[0] + (point1[0] - center[0]) * math.cos(rad) + (point1[1] - center[1]) * math.sin(rad)
+    new_y1 = center[1] - (point1[0] - center[0]) * math.sin(rad) + (point1[1] - center[1]) * math.cos(rad)
+
+    # Rotate point
+
+    results = (new_x1, new_y1)
+
+    return results
+
+# --- Derived Quantities ---
+def calculations():
+
+    get_entry_value()
+    total_mass = fsp_mass + dsf_mass + pw_mass + ballast_mass + cb_mass
+    fsp_weight = total_mass * g  # N
+    fsp_buoyancy = fsp_weight # N
+    draft = fsp_buoyancy / (rho * g * length * width) # meters up from keel datum
+
+    fsp_volume = length * width * draft  # m^3
+    fsp_displacement = length * width * rho * draft #kg
+
+    pw_displacement = rho * (math.pi * ((2.00 ** 2))/4)*1.5
+
+    #COG calulations
+    total_cog_y = ((((fsp_mass+dsf_mass+pw_mass)*cog_platform)+(ballast_mass*cog_ballast)+(cb_mass*cog_cb))/total_mass)
+    # adj_total_cog_y = total_cog_y - draft
+    # adj_total_cog_x = ((((fsp_mass+dsf_mass)*(length/2))+(pw_mass*((length/2)+pw_distance_from_CL)) +
+    #                     (cb_mass*((length/2)-cb_distance))+(ballast_mass*(length/2)))/total_mass) - length/2
+    # Pitch calculations
+    # Assuming a simple lever balance for pitch moment
+    # Let PW be removed from one end, causing rotation
+    moment_detached = (cb_mass * cb_distance)
+    if pw_mass < pw_displacement:
+        pw_displacement = pw_displacement * (pw_mass/pw_displacement)
+
+    moment_attached = ((pw_mass - pw_displacement) * pw_distance_from_CL) - (cb_mass * cb_distance)
+    moment_of_inertia = (width * length ** 3) / 12
+
+    #metacentric calculations
+    KB = draft / 2
+    KG = total_cog_y
+    BM = moment_of_inertia/fsp_volume
+    GM = BM + KB - KG
+    M = GM + KG
+    G = (0, -draft + KG)
+
+    pitch_angle_attached = math.degrees(math.atan(moment_attached/(fsp_displacement*GM)))
+    pitch_angle_detached = math.degrees(math.atan(moment_detached/(fsp_displacement*GM)))
+
+    # Adjusted draft aft and forward
+    draft_aft = draft + (length / 2) * math.sin(math.radians(pitch_angle_attached))
+    draft_forward = draft - (length / 2) * math.sin(math.radians(pitch_angle_attached))
+
+    #plotting
+
+    corners = [[-length/2, -draft], [-length/2, height - draft], [length/2, height - draft],[length/2, -draft]]
+    rotated_corners = [(rotate_points((0, M), corners[0], pitch_angle_attached)),
+                       (rotate_points((0, M), corners[1], pitch_angle_attached)),
+                       (rotate_points((0, M), corners[2], pitch_angle_attached)),
+                       (rotate_points((0, M), corners[3], pitch_angle_attached))]
+    rotated_G = rotate_points((0,M), G, pitch_angle_attached) #not working
+    print("=== Output Values ===")
+    print(f"FSP Volume Displaced (m^3): {fsp_volume:.4f}")
+    print(f"FSP Buoyancy (N): {fsp_buoyancy:.2f}")
+    print(f"Draft (m): {draft:.4f}")
+    print(f"GM: {GM:.4f}")
+    print(f"Moment att: {moment_attached:.4f}")
+    print(f"PW disp: {pw_displacement:.4f}")
+    print(f"Pitch Angle (degrees): {pitch_angle_attached:.4f}")
+    print(f"Pitch Angle (degrees): {pitch_angle_detached:.4f}")
+    print(f"Draft Aft (m): {draft_aft:.4f}") #sus of these values
+    print(f"Draft Forward (m): {draft_forward:.4f}") #sus of these values
+
+    update_plot(rotated_corners, M, rotated_G)
+
+# --- Output ---
+
+#GUI code
+def update_plot(rotated_corners, M, rotated_G):
+
+        ax.clear()
+        ax.set_aspect("equal")
+        ax.grid(True)
+        x, y = zip(*rotated_corners)
+        x += (x[0],)
+        y += (y[0],)
+        ax.autoscale(False)
+        plt.xlim(-10, 10)
+        plt.ylim(-10, 10)
+        ax.plot(x, y, marker='o')
+        ax.plot(0, M, marker='o')
+        ax.plot(rotated_G[0], rotated_G[1], marker='o')
+        plt.plot((rotated_G[0],0), (rotated_G[1],M), marker='o', label='Line between points')
+        ax.axhline(y=0, color='b', linestyle='--', linewidth=2)  # Horizontal line at y=2
+
+
+        canvas.draw()
+
+
+
+# --- GUI setup ---
+root = tk.Tk()
+root.title("Platform Pitch Simulator")
+
+main_frame = ttk.Frame(root, padding=10)
+main_frame.pack(fill='both', expand=True)
+
+# --- Matplotlib on the left ---
+fig, ax = plt.subplots(figsize=(5, 5))
+canvas = FigureCanvasTkAgg(fig, master=main_frame)
+canvas.get_tk_widget().grid(row=0, column=0)
+
+# --- Inputs on the right ---
+input_frame = ttk.Frame(main_frame)
+input_frame.grid(row=0, column=1, sticky="n")
+
+def add_input(label_text, default_value):
+    ttk.Label(input_frame, text=label_text).pack()
+    entry = ttk.Entry(input_frame, width=10)
+    entry.insert(0, str(default_value))
+    entry.pack()
+    return entry
+
+def get_entry_value():
+    global fsp_mass, dsf_mass, pw_mass, ballast_mass, cb_mass, length, width, \
+        height, cb_distance, cog_platform, cog_ballast, cog_cb, \
+        pw_distance_from_CL
+    fsp_mass = float(fsp_mass_entry.get())
+    dsf_mass = float(dsf_mass_entry.get())
+    pw_mass = float(pw_mass_entry.get())
+    ballast_mass = float(ballast_mass_entry.get())
+    cb_mass = float(cb_mass_entry.get())
+    length = float(length_entry.get())
+    width = float(width_entry.get())
+    height = float(height_entry.get())
+    cb_distance = float(cb_distance_entry.get())
+    cog_platform = float(cog_platform_entry.get())
+    cog_ballast = float(cog_ballast_entry.get())
+    cog_cb = float(cog_cb_entry.get())
+    pw_distance_from_CL = float(pw_distance_from_CL_entry.get())
+
+
+fsp_mass_entry = add_input("FSP Mass (kg)", fsp_mass)
+dsf_mass_entry = add_input("DSF Mass (kg)", dsf_mass)
+pw_mass_entry = add_input("PW Mass (kg)", pw_mass)
+ballast_mass_entry = add_input("Ballast Mass (kg)", ballast_mass)
+cb_mass_entry = add_input("Counter-Balance Mass (kg)", cb_mass)
+
+length_entry = add_input("Length (m)", length)
+width_entry = add_input("Width (m)", width)
+height_entry = add_input("Height (m)", height)
+
+cb_distance_entry = add_input("CB Distance from CL (m)", cb_distance)
+cog_platform_entry = add_input("COG Platform (m)", cog_platform)
+cog_ballast_entry = add_input("COG Ballast (m)", cog_ballast)
+cog_cb_entry = add_input("COG Counter-Balance (m)", cog_cb)
+pw_distance_from_CL_entry = add_input("PW Distance from CL (m)", pw_distance_from_CL)
+
+ttk.Button(input_frame, text="Plot Rotation", command= calculations).pack(pady=10)
+
+root.mainloop()
